@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P Working BOT</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --card: #111827;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --danger: #f87171;
+        --ok: #34d399;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      button {
+        border: none;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+      }
+
+      button.secondary {
+        background: #334155;
+        color: var(--text);
+      }
+
+      button.danger {
+        background: var(--danger);
+        color: #0f172a;
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+
+      .status-item {
+        background: rgba(148, 163, 184, 0.08);
+        padding: 12px;
+        border-radius: 10px;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .value {
+        font-size: 18px;
+        margin-top: 6px;
+        word-break: break-word;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .pill.ok {
+        background: rgba(52, 211, 153, 0.2);
+        color: var(--ok);
+      }
+
+      .pill.warn {
+        background: rgba(248, 113, 113, 0.2);
+        color: var(--danger);
+      }
+
+      footer {
+        margin-top: 20px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>P Working BOT</h1>
+        <div id="status-pill" class="pill warn">OFFLINE</div>
+      </header>
+
+      <div class="card">
+        <div class="actions">
+          <button onclick="startBot()">Start</button>
+          <button class="secondary" onclick="sendAction('pause')">Pause</button>
+          <button class="secondary" onclick="sendAction('stop')">Stop</button>
+          <button class="danger" onclick="sendAction('terminate')">Terminate</button>
+          <button class="secondary" onclick="refreshStatus()">Refresh Status</button>
+        </div>
+
+        <div class="status-grid" style="margin-bottom: 16px;">
+          <div class="status-item">
+            <div class="label">Strategies</div>
+            <div class="value">
+              <label><input type="checkbox" id="strategy-trend" checked /> Strategy A (Trend)</label><br />
+              <label><input type="checkbox" id="strategy-scalp" checked /> Strategy B (Scalp)</label><br />
+              <label><input type="checkbox" id="strategy-candle3" checked /> Strategy C (3 Candle)</label>
+            </div>
+          </div>
+          <div class="status-item">
+            <div class="label">Start-up Test Trade</div>
+            <div class="value">
+              <label><input type="checkbox" id="test-trade" checked /> Run 5s test trade</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-grid">
+          <div class="status-item">
+            <div class="label">State</div>
+            <div class="value" id="state">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Mode</div>
+            <div class="value" id="mode">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Balance</div>
+            <div class="value" id="balance">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Daily Volume</div>
+            <div class="value" id="daily-volume">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Daily Target</div>
+            <div class="value" id="daily-target">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Monthly Volume</div>
+            <div class="value" id="monthly-volume">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Strategy Volume</div>
+            <div class="value" id="strategy-volume">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Open Positions</div>
+            <div class="value" id="open-positions">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Trade Stats</div>
+            <div class="value" id="trade-stats">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Per-Strategy Stats</div>
+            <div class="value" id="strategy-stats">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Last Error</div>
+            <div class="value" id="last-error">-</div>
+          </div>
+        </div>
+
+        <div class="status-grid" style="margin-top: 16px;">
+          <div class="status-item">
+            <div class="label">Open Trades</div>
+            <div class="value" id="open-trades">-</div>
+          </div>
+          <div class="status-item">
+            <div class="label">Closed Trades</div>
+            <div class="value" id="closed-trades">-</div>
+          </div>
+        </div>
+      </div>
+
+      <footer>API base: <span id="api-base">/</span></footer>
+    </div>
+
+    <script>
+      const apiBase = "";
+      const apiBaseEl = document.getElementById("api-base");
+      apiBaseEl.textContent = window.location.origin;
+
+      async function sendAction(action) {
+        try {
+          await fetch(`${apiBase}/bot/${action}`, { method: "POST" });
+          await refreshStatus();
+        } catch (error) {
+          console.error("Action failed", error);
+        }
+      }
+
+      async function startBot() {
+        const strategies = [];
+        if (document.getElementById("strategy-trend").checked) {
+          strategies.push("trend");
+        }
+        if (document.getElementById("strategy-scalp").checked) {
+          strategies.push("scalp");
+        }
+        if (document.getElementById("strategy-candle3").checked) {
+          strategies.push("candle3");
+        }
+        const testTrade = document.getElementById("test-trade").checked;
+
+        try {
+          await fetch(`${apiBase}/bot/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ strategies, test_trade: testTrade }),
+          });
+          await refreshStatus();
+        } catch (error) {
+          console.error("Start failed", error);
+        }
+      }
+
+      async function refreshStatus() {
+        try {
+          const response = await fetch(`${apiBase}/bot/status`);
+          const data = await response.json();
+
+          document.getElementById("state").textContent = data.state;
+          document.getElementById("mode").textContent = data.mode || "-";
+          document.getElementById("daily-volume").textContent = formatNumber(data.daily_volume);
+          document.getElementById("daily-target").textContent = formatNumber(data.daily_target);
+          document.getElementById("monthly-volume").textContent = formatNumber(data.monthly_volume);
+          document.getElementById("strategy-volume").textContent = JSON.stringify(
+            data.strategy_volume,
+            null,
+            2
+          );
+          document.getElementById("open-positions").textContent = data.open_positions;
+          document.getElementById("last-error").textContent = data.last_error || "-";
+          document.getElementById("balance").textContent = JSON.stringify(data.balance, null, 2);
+          document.getElementById("trade-stats").textContent = JSON.stringify(data.trade_stats, null, 2);
+          document.getElementById("strategy-stats").textContent = JSON.stringify(
+            (data.trade_stats && data.trade_stats.per_strategy) || {},
+            null,
+            2
+          );
+          document.getElementById("open-trades").textContent = JSON.stringify(data.open_trades, null, 2);
+          document.getElementById("closed-trades").textContent = JSON.stringify(data.closed_trades, null, 2);
+
+          const pill = document.getElementById("status-pill");
+          if (data.state === "RUNNING") {
+            pill.textContent = "RUNNING";
+            pill.className = "pill ok";
+          } else {
+            pill.textContent = data.state || "OFFLINE";
+            pill.className = "pill warn";
+          }
+        } catch (error) {
+          console.error("Status fetch failed", error);
+        }
+      }
+
+      function formatNumber(value) {
+        if (value === null || value === undefined) {
+          return "-";
+        }
+        return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+
+      refreshStatus();
+      setInterval(refreshStatus, 5000);
+    </script>
+  </body>
+</html>
