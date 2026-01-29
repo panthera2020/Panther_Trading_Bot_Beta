@@ -26,6 +26,7 @@ class BotStatus:
     daily_volume: float
     daily_target: float
     monthly_volume: float
+    exchange_volume: Dict[str, float] = field(default_factory=dict)
     strategy_volume: Dict[str, float] = field(default_factory=dict)
     open_positions: int = 0
     last_error: Optional[str] = None

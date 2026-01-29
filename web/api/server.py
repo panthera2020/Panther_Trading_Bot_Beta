@@ -43,6 +43,8 @@ exchange_client = BybitClient(
         testnet=os.getenv("BYBIT_TESTNET", "true").lower() in {"1", "true", "yes"},
         demo=os.getenv("BYBIT_DEMO", "true").lower() in {"1", "true", "yes"},
         category=os.getenv("BYBIT_CATEGORY", "linear"),
+        recv_window=int(os.getenv("BYBIT_RECV_WINDOW", "10000")),
+        timeout=int(os.getenv("BYBIT_TIMEOUT", "20")),
     )
 )
 bot = TradingBot(BotConfig(), exchange_client)
@@ -82,6 +84,7 @@ def bot_status() -> dict:
         "daily_volume": status.daily_volume,
         "daily_target": status.daily_target,
         "monthly_volume": status.monthly_volume,
+        "exchange_volume": status.exchange_volume,
         "strategy_volume": status.strategy_volume,
         "open_positions": status.open_positions,
         "last_error": status.last_error,

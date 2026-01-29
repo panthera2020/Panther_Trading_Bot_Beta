@@ -185,6 +185,10 @@
             <div class="value" id="monthly-volume">-</div>
           </div>
           <div class="status-item">
+            <div class="label">Exchange Volume</div>
+            <div class="value" id="exchange-volume">-</div>
+          </div>
+          <div class="status-item">
             <div class="label">Strategy Volume</div>
             <div class="value" id="strategy-volume">-</div>
           </div>
@@ -270,6 +274,11 @@
           document.getElementById("daily-volume").textContent = formatNumber(data.daily_volume);
           document.getElementById("daily-target").textContent = formatNumber(data.daily_target);
           document.getElementById("monthly-volume").textContent = formatNumber(data.monthly_volume);
+          document.getElementById("exchange-volume").textContent = JSON.stringify(
+            data.exchange_volume || {},
+            null,
+            2
+          );
           document.getElementById("strategy-volume").textContent = JSON.stringify(
             data.strategy_volume,
             null,
@@ -285,7 +294,7 @@
             2
           );
           document.getElementById("open-trades").textContent = JSON.stringify(data.open_trades, null, 2);
-          document.getElementById("closed-trades").textContent = JSON.stringify(data.closed_trades, null, 2);
+          document.getElementById("closed-trades").innerHTML = formatClosedTrades(data.closed_trades || []);
 
           const pill = document.getElementById("status-pill");
           if (data.state === "RUNNING") {
@@ -305,6 +314,26 @@
           return "-";
         }
         return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+
+      function formatClosedTrades(trades) {
+        if (!trades.length) {
+          return "-";
+        }
+        const header = "symbol | side | qty | entry | exit | pnl | closed_at";
+        const lines = trades.map((t) => {
+          const closedAt = t.closed_at ? new Date(Number(t.closed_at)).toLocaleString() : "-";
+          return [
+            t.symbol || "-",
+            t.side || "-",
+            formatNumber(t.qty),
+            formatNumber(t.entry_price),
+            formatNumber(t.exit_price),
+            formatNumber(t.pnl),
+            closedAt,
+          ].join(" | ");
+        });
+        return `<pre>${[header, ...lines].join("\n")}</pre>`;
       }
 
       refreshStatus();

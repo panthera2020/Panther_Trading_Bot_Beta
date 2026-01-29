@@ -50,6 +50,7 @@ class StrategyC:
             return None
 
         last_three = candles[-3:]
+        first_candle_open = last_three[0]["open"]
         bull = all(c["close"] > c["open"] for c in last_three)
         bear = all(c["close"] < c["open"] for c in last_three)
         last_close = candles[-1]["close"]
@@ -61,7 +62,7 @@ class StrategyC:
                 side=Side.BUY,
                 timestamp=timestamp,
                 price=last_close,
-                stop_loss=last_close - atr_val,
+                stop_loss=first_candle_open,
                 take_profit=None,
                 size=size,
                 reason="three_bullish_3m",
@@ -74,7 +75,7 @@ class StrategyC:
                 side=Side.SELL,
                 timestamp=timestamp,
                 price=last_close,
-                stop_loss=last_close + atr_val,
+                stop_loss=first_candle_open,
                 take_profit=None,
                 size=size,
                 reason="three_bearish_3m",

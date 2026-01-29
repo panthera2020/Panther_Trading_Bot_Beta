@@ -101,23 +101,44 @@ class TradingBot:
 
     def status(self) -> BotStatus:
         balance = {}
+        exchange_stats: dict = {}
         try:
             balance = self.exchange_client.get_balance()
+            exchange_stats = self.exchange_client.get_exchange_stats(self.symbols)
         except Exception as exc:
-            self.last_error = str(exc)
+            if "Retryable error occurred" not in str(exc):
+                self.last_error = str(exc)
+        daily_volume = self.volume_manager.daily_volume
+        monthly_volume = self.volume_manager.monthly_volume
+        exchange_volume: dict = {}
+        trade_stats = self.position_manager.trade_stats()
+        open_trades = self.position_manager.open_positions()
+        closed_trades = self.position_manager.closed_trades()
+        open_positions_count = self.position_manager.open_positions_count()
+        if exchange_stats.get("volume"):
+            exchange_volume = exchange_stats["volume"]
+            daily_volume = exchange_stats["volume"].get("daily", daily_volume)
+        if exchange_stats.get("trade_stats"):
+            trade_stats = exchange_stats["trade_stats"]
+        if exchange_stats.get("open_trades"):
+            open_trades = exchange_stats["open_trades"]
+            open_positions_count = len(open_trades)
+        if exchange_stats.get("closed_trades"):
+            closed_trades = exchange_stats["closed_trades"]
         return BotStatus(
             state=self.state,
             mode=self._mode,
-            daily_volume=self.volume_manager.daily_volume,
+            daily_volume=daily_volume,
             daily_target=self.volume_manager.daily_target,
-            monthly_volume=self.volume_manager.monthly_volume,
+            monthly_volume=monthly_volume,
+            exchange_volume=exchange_volume,
             strategy_volume=self.volume_manager.strategy_volume,
-            open_positions=self.position_manager.open_positions_count(),
+            open_positions=open_positions_count,
             last_error=self.last_error,
             balance=balance,
-            trade_stats=self.position_manager.trade_stats(),
-            open_trades=self.position_manager.open_positions(),
-            closed_trades=self.position_manager.closed_trades(),
+            trade_stats=trade_stats,
+            open_trades=open_trades,
+            closed_trades=closed_trades,
         )
 
     def _size_for_strategy(self, strategy_id: str, atr_value: float, price: float, timestamp: datetime) -> float:
@@ -152,10 +173,19 @@ class TradingBot:
             return
 
         session = self.session_manager.current_session(ts)
-        allow_trend = "trend" in self.enabled_strategies and session.strategy_size_mult.get("trend", 0.0) > 0
-        allow_scalp = "scalp" in self.enabled_strategies and session.strategy_size_mult.get("scalp", 0.0) > 0
+        allow_trend = (
+            "trend" in self.enabled_strategies
+            and session.name in {"LONDON", "NY"}
+            and session.strategy_size_mult.get("trend", 0.0) > 0
+        )
+        allow_scalp = (
+            "scalp" in self.enabled_strategies
+            and session.name in {"LONDON", "NY"}
+            and session.strategy_size_mult.get("scalp", 0.0) > 0
+        )
         allow_c = (
             "candle3" in self.enabled_strategies
+            and session.name == "ASIA"
             and session.strategy_size_mult.get("scalp", 0.0) > 0
             and self.session_manager.is_within_window(ts, 1, 0, 15, 30, tz_offset_hours=1)
         )
@@ -221,8 +251,8 @@ class TradingBot:
                         try:
                             self.order_manager.execute_signal(signal, ts)
                             Thread(
-                                target=self._close_after_delay,
-                                args=(symbol, "candle3", 30),
+                                target=self._monitor_strategy_c,
+                                args=(symbol, "candle3", 10 * 3 * 60),
                                 daemon=True,
                             ).start()
                         except Exception as exc:  # exchange errors should halt the bot
@@ -284,8 +314,41 @@ class TradingBot:
             if self.state == BotState.RUNNING:
                 self._mode = BotMode.SCANNING
 
-    def _close_after_delay(self, symbol: str, strategy_id: str, delay_seconds: int) -> None:
-        sleep(delay_seconds)
+    def _monitor_strategy_c(self, symbol: str, strategy_id: str, delay_seconds: int) -> None:
+        """
+        Priority exit order:
+        1) Stop-loss hit
+        2) Timer expiry
+        3) Bot pause/terminate/stop
+        """
+        end_time = datetime.now(timezone.utc).timestamp() + delay_seconds
+        while datetime.now(timezone.utc).timestamp() < end_time:
+            if self.state != BotState.RUNNING:
+                try:
+                    exit_price = self.exchange_client.get_last_price(symbol)
+                    self.order_manager.close_position(symbol, strategy_id, exit_price, datetime.now(timezone.utc))
+                except Exception as exc:
+                    self.last_error = str(exc)
+                    self.state = BotState.ERROR
+                return
+
+            position = self.position_manager.get_position(symbol, strategy_id)
+            if not position:
+                return
+            try:
+                price = self.exchange_client.get_last_price(symbol)
+                if position.side.upper() == "BUY" and price <= position.stop_loss:
+                    self.order_manager.close_position(symbol, strategy_id, price, datetime.now(timezone.utc))
+                    return
+                if position.side.upper() == "SELL" and price >= position.stop_loss:
+                    self.order_manager.close_position(symbol, strategy_id, price, datetime.now(timezone.utc))
+                    return
+            except Exception as exc:
+                self.last_error = str(exc)
+                self.state = BotState.ERROR
+                return
+            sleep(1)
+
         try:
             exit_price = self.exchange_client.get_last_price(symbol)
             self.order_manager.close_position(symbol, strategy_id, exit_price, datetime.now(timezone.utc))
@@ -313,8 +376,9 @@ class TradingBot:
                     self._mode = BotMode.SCANNING
                     self.on_market_data(candles_1h, candles_5m, candles_3m, datetime.now(timezone.utc))
                 except Exception as exc:
+                    # Network/exchange hiccups: keep bot running and retry after 2 minutes.
                     self.last_error = str(exc)
-                    self.state = BotState.ERROR
                     self._mode = BotMode.IDLE
-                    return
+                    sleep(120)
+                    continue
             sleep(self.config.poll_interval_seconds)
